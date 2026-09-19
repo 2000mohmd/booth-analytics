@@ -21,12 +21,16 @@ What's still open, honestly:
   depends on the exact ONNX export used, and no specific weights have been
   vetted yet (see `scripts/export_models.py`'s printed notes). Wire this up in
   Phase 3 once a model is chosen.
-- **Cross-camera demographics attribution** — v1 does not do person re-identification
-  across the two cameras. The overhead camera is the sole source of truth for
-  counting/dwell/zones; the eye-level camera's demographics are attributed to
-  the currently active stopper by time-window, not by spatial re-id. Fine for a
-  single visitor at a time; ambiguous with multiple simultaneous stoppers - a
-  known v1 limitation, not a bug.
+- **Cross-camera demographics attribution** — wired up (`services/ingestion/pipeline.py`'s
+  `run_eyelevel_camera` + `attribute_demographics`, both camera loops run as threads in one
+  process sharing a `VisitTracker`). v1 still does not do person re-identification across
+  the two cameras: a demographics estimate is only attributed when there's exactly one
+  active stopper and exactly one detected face at that moment - anything more is skipped
+  rather than guessed. Fine for one visitor at a time; ambiguous with several simultaneous
+  stoppers. That attribution logic and the insert-stub/finalize ordering (a track's row is
+  created the moment it appears, not just when it finalizes, so demographics attached mid-dwell
+  don't get lost or wiped out later) are both covered by
+  `tests/integration/test_visit_lifecycle.py`.
 - **PDF reports (`services/reporting/pdf.py`)** — WeasyPrint needs a system
   GTK/Pango install. That's present in the Docker image (via apt) but not on a
   bare Windows dev box - `services/reporting/data.py` (the actual number-crunching)
@@ -49,6 +53,11 @@ pip install -r requirements.txt
 cp configs/booth.example.yaml configs/booth.yaml   # edit camera sources/zones
 pytest
 ```
+
+For CI or a machine without a GPU, `requirements-test.txt` is a lighter subset that skips
+`onnxruntime-gpu`/`ultralytics`/`supervision`/`weasyprint` - none of those are touched by the
+test suite (they're lazily imported only inside the model wrapper classes). `.github/workflows/test.yml`
+runs `ruff check` + `pytest` on every push, plus a dashboard build check.
 
 ## Run the API + dashboard locally (no camera needed)
 

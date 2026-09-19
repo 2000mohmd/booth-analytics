@@ -1,5 +1,4 @@
 """Periodic occupancy sampling and end-of-day aggregation into daily_summary."""
-import json
 import statistics
 from datetime import datetime, timezone
 

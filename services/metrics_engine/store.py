@@ -72,6 +72,9 @@ def cursor(conn: sqlite3.Connection):
 
 
 def insert_visit(conn, visit: dict):
+    """Creates or fully overwrites a visit row (used at track creation, or by tests/imports
+    that supply a complete row). Never call this after demographics have been attached to an
+    in-progress visit - it would blow away gender_est/age_bracket. Use finalize_visit() for that."""
     with cursor(conn) as cur:
         cur.execute(
             """INSERT OR REPLACE INTO visits
@@ -79,6 +82,20 @@ def insert_visit(conn, visit: dict):
                 is_stopper, is_staff, gender_est, gender_conf, age_bracket, age_conf, position_trace)
                VALUES (:visit_id, :booth_id, :entered_at, :exited_at, :zone_path, :dwell_seconds,
                        :is_stopper, :is_staff, :gender_est, :gender_conf, :age_bracket, :age_conf, :position_trace)""",
+            visit,
+        )
+
+
+def finalize_visit(conn, visit: dict):
+    """Updates only the fields dwell.VisitTracker.finalize() computes - leaves gender_est/
+    age_bracket alone, since the eye-level camera may have already attached those to this
+    visit_id while the track was still active (before it had a finalized row to update)."""
+    with cursor(conn) as cur:
+        cur.execute(
+            """UPDATE visits SET exited_at=:exited_at, zone_path=:zone_path,
+               dwell_seconds=:dwell_seconds, is_stopper=:is_stopper, is_staff=:is_staff,
+               position_trace=:position_trace
+               WHERE visit_id=:visit_id""",
             visit,
         )
 

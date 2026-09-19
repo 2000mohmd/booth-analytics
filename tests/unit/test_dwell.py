@@ -68,3 +68,19 @@ def test_active_and_staff_counts():
     vt.update("2", 50, 50, t0, is_staff=True)
     assert vt.active_count(exclude_staff=True) == 1
     assert vt.staff_count() == 1
+
+
+def test_active_stopper_visit_ids_reflects_live_dwell():
+    vt = _tracker(threshold=5.0)
+    t0 = 1000.0
+    vt.update("1", 50, 50, t0)          # enters stand at t0
+    assert vt.active_stopper_visit_ids(now=t0 + 2) == []       # not dwelling long enough yet
+    assert len(vt.active_stopper_visit_ids(now=t0 + 6)) == 1   # now over threshold, still tracked
+
+
+def test_active_stopper_visit_ids_excludes_staff_and_aisle():
+    vt = _tracker(threshold=5.0)
+    t0 = 1000.0
+    vt.update("1", 50, 10, t0)                    # aisle the whole time
+    vt.update("2", 50, 50, t0, is_staff=True)      # stand, but staff
+    assert vt.active_stopper_visit_ids(now=t0 + 10) == []

@@ -1,0 +1,13 @@
+# CI/dev-machine test subset - excludes GPU/heavy deps (onnxruntime-gpu, ultralytics,
+# supervision) and WeasyPrint (needs system GTK/Pango). Those are lazily imported only
+# inside the model wrapper classes and never touched by the pytest suite - see README.
+opencv-python-headless
+shapely
+fastapi
+uvicorn[standard]
+websockets
+httpx
+pyyaml
+pydantic
+openpyxl
+pytest

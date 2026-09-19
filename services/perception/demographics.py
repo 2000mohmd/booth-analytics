@@ -34,7 +34,9 @@ class FaceDetector:
         import onnxruntime as ort
 
         available = ort.get_available_providers()
-        return ["CUDAExecutionProvider", "CPUExecutionProvider"] if "CUDAExecutionProvider" in available else ["CPUExecutionProvider"]
+        if "CUDAExecutionProvider" in available:
+            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        return ["CPUExecutionProvider"]
 
     def detect_faces(self, frame: np.ndarray) -> list[np.ndarray]:
         raise NotImplementedError(
