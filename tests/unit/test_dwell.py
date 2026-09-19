@@ -1,3 +1,5 @@
+import pytest
+
 from services.metrics_engine.dwell import VisitTracker
 from services.metrics_engine.zones import ZoneMap
 
@@ -110,3 +112,65 @@ def test_position_trace_is_prefixed_with_its_camera():
         _update(vt, "1", 50, 50, t0 + i)
     visit = vt.finalize("1", t0 + 6)
     assert visit["position_trace"].startswith(f"{CAM}|")
+
+
+def test_finalize_unknown_track_raises_keyerror():
+    """finalize() pops with no default - calling it twice for the same track_id (e.g. a bug
+    that double-finalizes) must fail loudly rather than silently returning a bogus visit."""
+    vt = _tracker()
+    with pytest.raises(KeyError):
+        vt.finalize("never-seen", 1000.0)
+
+
+def test_zero_threshold_is_immediately_a_stopper():
+    vt = _tracker(threshold=0.0)
+    t0 = 1000.0
+    _update(vt, "1", 50, 50, t0)  # enters stand
+    visit = vt.finalize("1", t0)  # 0s elapsed
+    assert visit["is_stopper"] is True
+
+
+def test_dwell_at_exact_threshold_boundary_counts_as_stopper():
+    vt = _tracker(threshold=5.0)
+    t0 = 1000.0
+    _update(vt, "1", 50, 50, t0)
+    visit = vt.finalize("1", t0 + 5.0)  # exactly the threshold, not over it
+    assert visit["dwell_seconds"] == 5.0
+    assert visit["is_stopper"] is True
+
+
+def test_dwell_accumulates_across_separate_visits_to_same_zone():
+    """A track that leaves the stand for the aisle and comes back must have its two stand
+    stints summed, not overwritten by the second one."""
+    vt = _tracker(threshold=5.0)
+    t0 = 1000.0
+    _update(vt, "1", 50, 50, t0)          # enters stand
+    _update(vt, "1", 50, 10, t0 + 3)      # back to aisle: stand stint #1 = 3s
+    _update(vt, "1", 50, 50, t0 + 4)      # re-enters stand
+    visit = vt.finalize("1", t0 + 9)      # stand stint #2 = 5s
+    assert visit["dwell_seconds"] == 8.0
+    assert visit["zone_path"] == "stand→aisle→stand"
+    assert visit["is_stopper"] is True
+
+
+def test_track_never_in_any_zone_has_empty_path_and_zero_dwell():
+    vt = _tracker()
+    t0 = 1000.0
+    _update(vt, "1", 500, 500, t0)        # outside every zone -> zone is None
+    _update(vt, "1", 500, 500, t0 + 10)
+    visit = vt.finalize("1", t0 + 10)
+    assert visit["zone_path"] == ""
+    assert visit["dwell_seconds"] == 0.0
+    assert visit["is_stopper"] is False
+
+
+def test_expire_stale_with_negative_grace_flushes_everything():
+    """services/ingestion/pipeline.py calls expire_stale(now, grace_seconds=-1) on shutdown to
+    flush every still-active track, however recently it was last seen."""
+    vt = _tracker()
+    t0 = 1000.0
+    _update(vt, "1", 50, 50, t0)
+    _update(vt, "2", 50, 50, t0)
+    finalized = vt.expire_stale(now=t0, grace_seconds=-1)
+    assert len(finalized) == 2
+    assert vt.active_count() == 0

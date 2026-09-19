@@ -16,3 +16,11 @@ def test_skips_when_multiple_faces_detected():
 def test_skips_when_no_stoppers_or_no_faces():
     assert attribute_demographics([], [object()]) is None
     assert attribute_demographics(["v1"], []) is None
+
+
+def test_skips_when_both_empty():
+    assert attribute_demographics([], []) is None
+
+
+def test_skips_when_multiple_stoppers_and_multiple_faces():
+    assert attribute_demographics(["v1", "v2"], [object(), object()]) is None
