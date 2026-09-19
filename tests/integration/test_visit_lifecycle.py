@@ -14,13 +14,14 @@ ZONES = {
 
 def test_demographics_survive_finalize(tmp_path):
     conn = store.connect(tmp_path / "events.db")
+    zone_map = ZoneMap(ZONES)
     vt = VisitTracker(
-        booth_id="booth-01", zone_map=ZoneMap(ZONES), stopper_threshold_s=5.0,
+        booth_id="booth-01", stopper_threshold_s=5.0,
         on_track_created=lambda stub: store.insert_visit(conn, stub),
     )
 
     t0 = 1000.0
-    vt.update("1", 50, 50, t0)  # track created -> stub row inserted via callback
+    vt.update("cam1:1", "cam1", zone_map.zone_for_point(50, 50), 50, 50, t0)  # stub row inserted via callback
 
     row = conn.execute("SELECT * FROM visits").fetchone()
     assert row is not None
@@ -34,7 +35,7 @@ def test_demographics_survive_finalize(tmp_path):
     store.update_visit_demographics(conn, visit_id, "female", 0.92, "18-35", 0.88)
 
     # track disappears - overhead loop finalizes it
-    visit = vt.finalize("1", t0 + 8)
+    visit = vt.finalize("cam1:1", t0 + 8)
     store.finalize_visit(conn, visit)
 
     row = conn.execute("SELECT * FROM visits WHERE visit_id=?", (visit_id,)).fetchone()

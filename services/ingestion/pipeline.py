@@ -1,10 +1,13 @@
 """Per-camera frame loop: detect -> track -> staff-filter -> zone/dwell update -> event store.
 
-Overhead camera drives counting/dwell/zones (authoritative) and owns the visits table row
-lifecycle: a stub row is inserted the moment a track appears (via VisitTracker's
-on_track_created callback, wired in services/ingestion/main.py) and finalize_visit() fills in
-the rest when the track disappears. Eye-level camera only samples demographics for tracks
-already marked as active stoppers - see attribute_demographics() below.
+Each overhead camera runs this loop in its own thread against its own ZoneMap (pixel
+coordinates are camera-local - see services/metrics_engine/zones.py) but all of them share one
+VisitTracker instance, which is the actual multi-camera fusion point: it doesn't care how many
+cameras feed it, only that each gives it a per-camera-namespaced track_id and a resolved zone
+name. A stub row is inserted the moment a track appears (via VisitTracker's on_track_created
+callback, wired in services/ingestion/main.py) and finalize_visit() fills in the rest when the
+track disappears. Eye-level camera only samples demographics for tracks already marked as
+active stoppers - see attribute_demographics() below.
 """
 import logging
 import time
@@ -13,6 +16,7 @@ import cv2
 
 from services.metrics_engine import store
 from services.metrics_engine.dwell import VisitTracker
+from services.metrics_engine.zones import ZoneMap
 from services.perception.detector import PersonDetector
 from services.perception.staff_filter import is_staff
 from services.perception.tracker import PersonTracker
@@ -37,14 +41,20 @@ def attribute_demographics(active_stopper_visit_ids: list[str], faces: list) -> 
 
 
 def run_overhead_camera(
+    camera_id: str,
     source: str | int,
     detector: PersonDetector,
     tracker: PersonTracker,
+    zone_map: ZoneMap,
     visit_tracker: VisitTracker,
     conn,
     marker_config: dict,
     debug_preview: bool = False,
 ):
+    """One of possibly several overhead cameras, each covering its own section of a booth too
+    large for one camera's FOV. `tracker` and `zone_map` must be this camera's own instances
+    (ByteTrack state and pixel coordinates are both camera-local); `visit_tracker` is shared
+    across all overhead cameras for this booth - see the module docstring."""
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
         raise RuntimeError(f"could not open camera source: {source}")
@@ -64,7 +74,8 @@ def run_overhead_camera(
                 crop = frame[int(t.y1):int(t.y2), int(t.x1):int(t.x2)]
                 staff = is_staff(crop, marker_config)
                 cx, cy = t.centroid
-                visit_tracker.update(str(t.track_id), cx, cy, now, is_staff=staff)
+                zone = zone_map.zone_for_point(cx, cy)
+                visit_tracker.update(f"{camera_id}:{t.track_id}", camera_id, zone, cx, cy, now, is_staff=staff)
 
             for visit in visit_tracker.expire_stale(now, TRACK_GRACE_SECONDS):
                 store.finalize_visit(conn, visit)
@@ -80,7 +91,7 @@ def run_overhead_camera(
                     cv2.rectangle(frame, (int(t.x1), int(t.y1)), (int(t.x2), int(t.y2)), (0, 255, 0), 2)
                     cv2.putText(frame, f"id={t.track_id}", (int(t.x1), int(t.y1) - 5),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                cv2.imshow("overhead debug", frame)
+                cv2.imshow(f"overhead debug: {camera_id}", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
     finally:

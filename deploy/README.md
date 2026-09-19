@@ -1,8 +1,11 @@
 # Edge deployment
 
 1. Copy the repo to `/opt/booth-analytics` on the edge box (Jetson or x86 mini-PC).
-2. Fill in `configs/booth.yaml` (copy from `booth.example.yaml`) with real camera sources
-   and run `scripts/calibrate_zones.py` to draw the zone polygons.
+2. Fill in `configs/booth.yaml` (copy from `booth.example.yaml`) with real camera sources.
+   The example ships with 3 overhead cameras (one camera's FOV can't cover this booth's
+   floor) + 1 eye-level - adjust the camera list/zones to your actual layout. Run
+   `scripts/calibrate_zones.py --camera-id <id> --source <source>` once per overhead camera
+   to draw that camera's own zone polygons (pixel coordinates are camera-local).
 3. Run `scripts/export_models.py` (and source the demographics models per its printed notes)
    so `models/` is populated before first boot.
 4. `docker compose build && docker compose up -d` once manually to confirm it comes up clean.

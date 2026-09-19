@@ -1,9 +1,16 @@
 # Booth Visitor Analytics
 
-Two-camera booth analytics pipeline: counting, dwell time, gender/age brackets,
+Multi-camera booth analytics pipeline: counting, dwell time, gender/age brackets,
 heatmap, staff exclusion, alerts, dashboard, reporting. Runs on local edge
 compute; raw video never leaves the ingestion process and is never written to
 disk — only anonymous numeric events persist.
+
+The example config ships with **3 overhead cameras + 1 eye-level camera**: one overhead
+camera's field of view can't cover a large booth's floor, so each overhead camera owns a
+section (its own zone polygons, in its own pixel coordinates) and all of them fuse into one
+shared counting/dwell ledger (`services/metrics_engine/dwell.py`'s `VisitTracker`, shared
+across camera threads in one ingestion process). One eye-level camera is enough for
+demographics, since a stopper already dwells for several seconds in one spot.
 
 ## Status
 
@@ -21,16 +28,19 @@ What's still open, honestly:
   depends on the exact ONNX export used, and no specific weights have been
   vetted yet (see `scripts/export_models.py`'s printed notes). Wire this up in
   Phase 3 once a model is chosen.
-- **Cross-camera demographics attribution** — wired up (`services/ingestion/pipeline.py`'s
-  `run_eyelevel_camera` + `attribute_demographics`, both camera loops run as threads in one
-  process sharing a `VisitTracker`). v1 still does not do person re-identification across
-  the two cameras: a demographics estimate is only attributed when there's exactly one
-  active stopper and exactly one detected face at that moment - anything more is skipped
-  rather than guessed. Fine for one visitor at a time; ambiguous with several simultaneous
-  stoppers. That attribution logic and the insert-stub/finalize ordering (a track's row is
-  created the moment it appears, not just when it finalizes, so demographics attached mid-dwell
-  don't get lost or wiped out later) are both covered by
-  `tests/integration/test_visit_lifecycle.py`.
+- **No cross-camera re-identification, anywhere.** This shows up two ways: (1) a visitor
+  who physically walks from one overhead camera's section into another's is counted as two
+  separate visits, not one continuous one - fine when sections are non-overlapping and
+  visitors don't cross between them mid-visit, wrong if they do; (2) demographics attribution
+  (`services/ingestion/pipeline.py`'s `attribute_demographics`) only attaches a face to a
+  visit when there's exactly one active stopper *booth-wide* and exactly one detected face at
+  that moment - anything more is skipped rather than guessed. Both are documented v1
+  limitations, not bugs. All camera loops (however many overhead cameras + the one eye-level
+  camera) run as threads in one process sharing a `VisitTracker`, which is now genuinely
+  multi-writer - it's lock-protected (`services/metrics_engine/dwell.py`) and the insert-stub/
+  finalize ordering (a track's row is created the moment it appears, not just when it
+  finalizes, so demographics attached mid-dwell don't get lost or wiped out later) is covered
+  by `tests/integration/test_visit_lifecycle.py` and `test_multi_camera_fusion.py`.
 - **PDF reports (`services/reporting/pdf.py`)** — WeasyPrint needs a system
   GTK/Pango install. That's present in the Docker image (via apt) but not on a
   bare Windows dev box - `services/reporting/data.py` (the actual number-crunching)

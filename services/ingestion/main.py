@@ -1,9 +1,10 @@
-"""Camera ingestion entrypoint. Reads booth.yaml + models.yaml, runs the overhead camera's
-detect/track/zone/dwell loop and the eye-level camera's demographics loop as two threads in
-one process - they share one VisitTracker in memory, which is how the eye-level loop knows
-which track is an active stopper right now (see dwell.VisitTracker.active_stopper_visit_ids).
-A DB is the only channel between separate processes/containers, and that state changes every
-frame, so this stays one process per booth rather than one container per camera.
+"""Camera ingestion entrypoint. Reads booth.yaml + models.yaml and runs every configured
+camera's loop as a thread in one process - all overhead cameras and the eye-level camera
+share one VisitTracker in memory, which is how (a) multiple overhead cameras fuse into one
+counting/dwell ledger and (b) the eye-level loop knows which track is an active stopper right
+now (see dwell.VisitTracker.active_stopper_visit_ids). A DB is the only channel between
+separate processes/containers, and that state changes every frame, so this stays one process
+per booth rather than one container per camera.
 """
 import argparse
 import logging
@@ -41,24 +42,40 @@ def main():
     models = load_yaml(args.models_config)
     device = "cuda" if models.get("execution_provider") == "CUDAExecutionProvider" else "cpu"
 
-    overhead = next(c for c in booth["cameras"] if c["role"] == "overhead")
+    overhead_cameras = [c for c in booth["cameras"] if c["role"] == "overhead"]
+    if not overhead_cameras:
+        raise ValueError("booth.yaml has no camera with role: overhead - need at least one")
 
+    # one shared PersonDetector (see its class docstring for why sharing is safe/preferred),
+    # one PersonTracker per camera (ByteTrack state is inherently per-stream, can't be shared)
     detector = PersonDetector(
         weights_path=models["detector"]["weights"],
         confidence_threshold=models["detector"]["confidence_threshold"], device=device,
     )
-    tracker = PersonTracker()
-    zone_map = ZoneMap(booth["zones"])
     conn = store.connect(args.db_path)
     visit_tracker = VisitTracker(
-        booth_id=booth["booth_id"], zone_map=zone_map,
-        stopper_threshold_s=booth["thresholds"]["dwell_seconds_stopper"],
+        booth_id=booth["booth_id"], stopper_threshold_s=booth["thresholds"]["dwell_seconds_stopper"],
         on_track_created=lambda stub: store.insert_visit(conn, stub),
     )
 
     from services.ingestion.pipeline import run_eyelevel_camera, run_overhead_camera
 
     threads = []
+    for cam in overhead_cameras:
+        zone_map = ZoneMap(cam.get("zones") or {})
+        t = threading.Thread(
+            target=run_overhead_camera,
+            kwargs=dict(
+                camera_id=cam["id"], source=cam["source"], detector=detector,
+                tracker=PersonTracker(), zone_map=zone_map, visit_tracker=visit_tracker,
+                conn=conn, marker_config=booth["staff_marker"], debug_preview=args.debug_preview,
+            ),
+            daemon=True,
+        )
+        threads.append(t)
+        log.info("configured overhead camera: id=%s source=%s zones=%s",
+                  cam["id"], cam["source"], list(zone_map.polygons))
+
     eyelevel = next((c for c in booth["cameras"] if c["role"] == "eyelevel"), None)
     if eyelevel and not args.skip_demographics:
         from services.perception.demographics import DemographicsClassifier, FaceDetector
@@ -71,24 +88,19 @@ def main():
             weights_path=models["demographics"]["weights"],
             confidence_threshold=models["demographics"]["confidence_threshold"],
         )
-        t = threading.Thread(
+        threads.append(threading.Thread(
             target=run_eyelevel_camera,
             args=(eyelevel["source"], face_detector, demographics_classifier, visit_tracker, conn),
             daemon=True,
-        )
-        threads.append(t)
+        ))
     else:
         log.info("no eye-level camera configured (or --skip-demographics set) - counting/dwell only")
 
-    log.info("starting overhead ingestion: booth=%s source=%s", booth["booth_id"], overhead["source"])
+    log.info("starting ingestion: booth=%s overhead_cameras=%d", booth["booth_id"], len(overhead_cameras))
     for t in threads:
         t.start()
-
-    run_overhead_camera(
-        source=overhead["source"], detector=detector, tracker=tracker,
-        visit_tracker=visit_tracker, conn=conn, marker_config=booth["staff_marker"],
-        debug_preview=args.debug_preview,
-    )
+    for t in threads:
+        t.join()
 
 
 if __name__ == "__main__":
