@@ -1,0 +1,20 @@
+# Model paths/versions and inference thresholds.
+# Weights themselves are gitignored under models/ — fetched by scripts/export_models.py.
+
+detector:
+  name: yolov8n
+  weights: models/yolov8n.onnx
+  confidence_threshold: 0.4
+  classes: [person]
+
+face_detector:
+  name: scrfd
+  weights: models/scrfd.onnx
+  confidence_threshold: 0.5
+
+demographics:
+  name: age_gender_retail_0013
+  weights: models/age_gender.onnx
+  confidence_threshold: 0.6
+
+execution_provider: CUDAExecutionProvider   # falls back to CPUExecutionProvider if unavailable

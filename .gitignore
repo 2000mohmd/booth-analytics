@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+models/*
+!models/.gitkeep
+data/sample_videos/*
+!data/sample_videos/.gitkeep
+configs/booth.yaml
+*.db
+*.db-wal
+*.db-shm
+node_modules/
+.env

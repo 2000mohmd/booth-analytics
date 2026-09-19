@@ -1,0 +1,31 @@
+# Per-deployment booth configuration.
+# Copy to booth.yaml (gitignored) and fill in for the real venue.
+
+booth_id: booth-01
+
+cameras:
+  - id: cam_overhead
+    role: overhead          # feeds counting/dwell/zones
+    source: data/sample_videos/sample.mp4   # file path, or rtsp://..., or 0 for USB index
+  - id: cam_eyelevel
+    role: eyelevel           # feeds demographics (frontal faces)
+    source: data/sample_videos/sample.mp4
+
+# Zone polygons in image pixel coordinates, drawn with scripts/calibrate_zones.py.
+# Each zone is a list of [x, y] points forming a closed polygon.
+zones:
+  aisle: []
+  stand: []
+  table: []
+
+thresholds:
+  dwell_seconds_stopper: 5.0     # dwell >= this in stand/table zone counts as a "stopper"
+  capacity_max_occupancy: 15
+  traffic_spike_per_minute: 10
+  low_sample_size_demographics: 30   # below this hourly count, flag demographic bucket as low-confidence
+
+staff_marker:
+  type: color_range   # 'color_range' | 'qr'
+  # for color_range: HSV bounds; for qr: expected payload prefix
+  hsv_lower: [35, 80, 80]
+  hsv_upper: [85, 255, 255]
