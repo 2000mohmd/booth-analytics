@@ -1,10 +1,19 @@
+x-common-env: &common-env
+  BOOTH_CONFIG: /app/configs/booth.yaml
+  MODELS_CONFIG: /app/configs/models.yaml
+  DB_PATH: /app/data/events.db
+  BOOTH_ID: booth-01
+
 services:
   ingestion:
     build: .
     command: python3 services/ingestion/main.py
+    environment:
+      <<: *common-env
     volumes:
       - ./configs:/app/configs
       - ./data:/app/data
+    restart: unless-stopped
     deploy:
       resources:
         reservations:
@@ -16,22 +25,40 @@ services:
   metrics_engine:
     build: .
     command: python3 services/metrics_engine/main.py
+    environment:
+      <<: *common-env
     volumes:
       - ./configs:/app/configs
       - ./data:/app/data
+    restart: unless-stopped
 
   api:
     build: .
     command: uvicorn services.api.main:app --host 0.0.0.0 --port 8000
+    environment:
+      <<: *common-env
     ports:
       - "8000:8000"
     volumes:
       - ./configs:/app/configs
       - ./data:/app/data
+    restart: unless-stopped
 
   alerting:
     build: .
     command: python3 services/alerting/main.py
+    environment:
+      <<: *common-env
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
     volumes:
       - ./configs:/app/configs
       - ./data:/app/data
+    restart: unless-stopped
+
+  dashboard:
+    build: ./services/dashboard
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    depends_on:
+      - api

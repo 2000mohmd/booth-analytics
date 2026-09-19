@@ -1,10 +1,12 @@
 onnxruntime-gpu
 opencv-python-headless
 ultralytics
+supervision
 shapely
 fastapi
 uvicorn[standard]
 websockets
+httpx
 pyyaml
 pydantic
 weasyprint

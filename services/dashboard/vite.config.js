@@ -1,0 +1,14 @@
+import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  server: {
+    host: true, // reachable from phones on the venue Wi-Fi, not just localhost
+    proxy: {
+      '/api': { target: 'http://localhost:8000', changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, '') },
+      '/ws': { target: 'ws://localhost:8000', ws: true, rewrite: (p) => p.replace(/^\/ws/, '/ws') },
+    },
+  },
+})
