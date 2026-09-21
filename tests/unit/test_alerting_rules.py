@@ -15,3 +15,12 @@ def test_no_coverage_only_when_visitors_present():
 def test_traffic_spike_threshold():
     assert traffic_spike(recent_stopper_count=10, spike_threshold=10) is True
     assert traffic_spike(recent_stopper_count=9, spike_threshold=10) is False
+
+
+def test_capacity_exceeded_at_zero_capacity():
+    assert capacity_exceeded(0, capacity_max=0) is False
+    assert capacity_exceeded(1, capacity_max=0) is True
+
+
+def test_traffic_spike_zero_threshold_always_trips():
+    assert traffic_spike(recent_stopper_count=0, spike_threshold=0) is True
