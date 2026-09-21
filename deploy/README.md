@@ -27,6 +27,23 @@ cut loses at most the last uncommitted write, not the whole file. Verify this ho
 actual target hardware by pulling power mid-write during a test run before trusting it at
 a live event - WAL correctness assumptions can differ across filesystems/storage media.
 
+## Public TV display (marketing screen)
+
+`http://<edge-box-ip>:8080/kiosk` is a public-facing view - large-format live counters,
+traffic chart, and gender split, cycling every 10s. It shows aggregate numbers only, never
+raw video or anything that identifies a visitor, so it doesn't compromise the "zero video
+retention" design even though it's on a public screen (see `services/dashboard/src/Kiosk.jsx`).
+
+To drive an actual TV: cheapest option is any small stick/mini-PC on the venue network running
+a Chromium-based browser in kiosk mode pointed at that URL, e.g.:
+
+```bash
+chromium --kiosk --noerrdialogs --disable-session-crashed-bubble http://<edge-box-ip>:8080/kiosk
+```
+
+Most commercial signage players and smart TVs' built-in browsers work too, as long as they can
+reach the edge box's port 8080 on the venue Wi-Fi/LAN.
+
 ## Reporting
 
 `reporting` is not a long-running container - it's a one-off CLI. Run it on demand or wire
