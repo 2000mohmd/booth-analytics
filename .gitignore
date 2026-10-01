@@ -15,3 +15,6 @@ dist/
 .env
 deploy/secrets/
 graphify-out/cache/
+data/native.pids
+data/logs/
+data/requirements.native.txt

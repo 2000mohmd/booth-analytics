@@ -1,0 +1,16 @@
+# Weak, GPU-less dev laptop: docker compose -f docker-compose.yml -f docker-compose.laptop.yml up -d
+# Use with MODELS_CONFIG pointing at configs/models.local.yaml (CPU). Skips the optional/heavy services.
+services:
+  ingestion:
+    command: python3 -m services.ingestion.main
+    environment:
+      MODELS_CONFIG: /app/configs/models.local.yaml
+      MAX_FPS: "3"
+    deploy: !override
+      resources:
+        limits: {cpus: "3", memory: 2500M}
+  metrics_engine: {deploy: {resources: {limits: {cpus: "0.5", memory: 200M}}}}
+  api: {deploy: {resources: {limits: {cpus: "0.5", memory: 300M}}}}
+  alerting: {profiles: [disabled]}
+  cloud_sync: {profiles: [disabled]}
+  dashboard: {deploy: {resources: {limits: {cpus: "0.25", memory: 100M}}}}

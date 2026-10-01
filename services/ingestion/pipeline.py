@@ -10,6 +10,7 @@ track disappears. Eye-level camera only samples demographics for tracks already 
 active stoppers - see attribute_demographics() below.
 """
 import logging
+import os
 import threading
 import time
 
@@ -135,6 +136,10 @@ TRACK_GRACE_SECONDS = 3.5       # how long a track may be unseen before its visi
 # re-associate it - so a successful re-association would look like a brand-new track_id here
 # even though the numeric ID ByteTrack assigned was actually unchanged.
 OCCUPANCY_SAMPLE_EVERY_S = 5.0
+# Detection cap per overhead camera. Without it each loop runs YOLO on every frame as fast as the
+# CPU/GPU allows, pinning the machine; dwell/zone analytics don't need more than a few fps.
+# Calibration knob: raise via MAX_FPS if tracks fragment on fast walkers, lower on a weak laptop.
+MAX_FPS = float(os.environ.get("MAX_FPS", "4"))
 DEMOGRAPHICS_SAMPLE_EVERY_S = 2.0  # only sample the eye-level stream this often - stoppers dwell
 LIVE_TRACK_SAMPLE_EVERY_S = 0.2   # debug live-track view refresh rate - bbox/zone numbers only,
 # never the frame itself (services/metrics_engine/store.py's live_tracks table docstring)
@@ -205,8 +210,12 @@ def run_overhead_camera(
     last_demographics_sample = 0.0
     last_live_track_sample = 0.0
     seq = 0
+    next_tick = 0.0
     try:
         while True:
+            if (wait := next_tick - time.time()) > 0:
+                time.sleep(wait)
+            next_tick = time.time() + 1.0 / MAX_FPS
             seq, frame = reader.next_frame(seq)
             frame = frame.copy()
 
