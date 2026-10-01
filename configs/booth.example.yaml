@@ -6,11 +6,18 @@ booth_id: booth-01
 # 3 overhead cameras here because one camera's FOV can't cover this booth's floor area -
 # each one owns a section of the booth and its own zone polygons (pixel coordinates are
 # camera-local, drawn separately per camera with scripts/calibrate_zones.py). They all feed
-# into the same shared counting/dwell ledger - see services/metrics_engine/dwell.py's module
-# docstring for the cross-camera limitation this implies (no re-id between sections).
+# into the same shared counting/dwell ledger. A visitor crossing between two cameras' sections
+# is only recognized as one continuous visit (not two) if that boundary is declared below in
+# zone_transitions - see services/metrics_engine/dwell.py's module docstring for how the
+# matching actually works and its limits (it's a time-window heuristic, not appearance re-id).
 #
 # 1 eye-level camera is enough for demographics: a stopper already dwells for several seconds
 # in one spot, so one well-placed camera catches a frontal face without needing one per section.
+# RTSP `source:` values may reference ${VAR}-style placeholders, expanded from a repo-root
+# .env file (or the process environment) at load time by services/ingestion/main.py - see
+# services/common/config.py's expand_env_placeholders(). Keeps real camera credentials out of
+# this file entirely, e.g.:
+#   source: "rtsp://${NVR_USERNAME}:${NVR_PASSWORD}@${NVR_HOST}:${NVR_PORT}/cam/realmonitor?channel=1&subtype=${NVR_SUBTYPE}&unicast=true&proto=Onvif"
 cameras:
   - id: cam_overhead_entrance
     role: overhead
@@ -32,6 +39,20 @@ cameras:
   - id: cam_eyelevel
     role: eyelevel           # feeds demographics (frontal faces) - placed to face the busiest stop zone
     source: data/sample_videos/sample.mp4
+
+# Optional. Each entry declares one physically-adjacent (camera, zone) boundary a visitor can
+# walk across between two overhead cameras' sections - e.g. entrance's "stand" zone shares a
+# real-world edge with middle's "stand" zone. max_gap_seconds is how long a visitor may be
+# off-camera during the crossing before the two sightings are treated as separate visits again
+# (measured from when they were last actually seen, not from when the gap was noticed). Every
+# entry is bidirectional. Leave empty/omit entirely to keep the old no-re-id behavior.
+zone_transitions:
+  - from: {camera: cam_overhead_entrance, zone: stand}
+    to: {camera: cam_overhead_middle, zone: stand}
+    max_gap_seconds: 2.0
+  - from: {camera: cam_overhead_middle, zone: table}
+    to: {camera: cam_overhead_back, zone: table}
+    max_gap_seconds: 2.0
 
 thresholds:
   dwell_seconds_stopper: 5.0     # dwell >= this in a non-aisle zone counts as a "stopper"

@@ -7,7 +7,7 @@ x-common-env: &common-env
 services:
   ingestion:
     build: .
-    command: python3 services/ingestion/main.py
+    command: python3 -m services.ingestion.main
     environment:
       <<: *common-env
     volumes:
@@ -24,7 +24,7 @@ services:
 
   metrics_engine:
     build: .
-    command: python3 services/metrics_engine/main.py
+    command: python3 -m services.metrics_engine.main
     environment:
       <<: *common-env
     volumes:
@@ -38,7 +38,11 @@ services:
     environment:
       <<: *common-env
     ports:
-      - "8000:8000"
+      # bound to localhost only - the dashboard's nginx (auth-gated for non-public endpoints,
+      # see services/dashboard/nginx.conf) is the only intended path to this from the venue LAN.
+      # Was "8000:8000" (open on every interface) - that let anyone on the venue Wi-Fi bypass
+      # nginx and the auth in front of it entirely.
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./configs:/app/configs
       - ./data:/app/data
@@ -46,7 +50,7 @@ services:
 
   alerting:
     build: .
-    command: python3 services/alerting/main.py
+    command: python3 -m services.alerting.main
     environment:
       <<: *common-env
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
@@ -55,10 +59,27 @@ services:
       - ./data:/app/data
     restart: unless-stopped
 
+  cloud_sync:
+    build: .
+    command: python3 -m services.cloud_sync.main
+    environment:
+      <<: *common-env
+      CLOUD_SYNC_URL: ${CLOUD_SYNC_URL:-}
+      CLOUD_SYNC_API_KEY: ${CLOUD_SYNC_API_KEY:-}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    # Optional: idles (no crash-loop) if CLOUD_SYNC_URL isn't set - see main.py. Fine to leave
+    # this service defined even when remote access isn't needed for a given deployment.
+
   dashboard:
     build: ./services/dashboard
     ports:
       - "8080:80"
+    volumes:
+      # generated at deploy time by deploy/windows/generate-htpasswd.ps1 (or htpasswd on Linux)
+      # - never committed, gitignored. See nginx.conf's auth_basic_user_file.
+      - ./deploy/secrets/htpasswd:/etc/nginx/htpasswd:ro
     restart: unless-stopped
     depends_on:
       - api

@@ -20,10 +20,24 @@ class Track:
 
 
 class PersonTracker:
-    def __init__(self):
+    def __init__(self, frame_rate: int = 30, lost_track_buffer_seconds: float = 3.0):
+        """lost_track_buffer_seconds is how long ByteTrack keeps trying to re-associate a track
+        that stopped getting detections before giving up and freeing its ID. supervision's
+        ByteTrack default (30 frames = ~1s at 30fps) is tuned for dense multi-object benchmarks
+        with mostly-continuous detections - too short for a real webcam/YOLO-nano feed, where a
+        person can drop below the detector's confidence threshold for a second or two (motion
+        blur, partial occlusion, awkward pose) and come right back. Too short a buffer means that
+        single continuously-present visitor gets split into many separate tracks (and therefore
+        many separate visits) - see services/ingestion/pipeline.py's TRACK_GRACE_SECONDS, which
+        can't fix this on its own since a *new* track_id always starts a new visit regardless of
+        how generous the grace period is.
+        """
         import supervision as sv  # imported lazily - only needed at runtime
 
-        self._tracker = sv.ByteTrack()
+        self._tracker = sv.ByteTrack(
+            frame_rate=frame_rate,
+            lost_track_buffer=round(lost_track_buffer_seconds * frame_rate),
+        )
         self._sv = sv
 
     def update(self, detections: list[Detection], frame: np.ndarray) -> list[Track]:

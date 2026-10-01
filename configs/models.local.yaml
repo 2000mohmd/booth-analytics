@@ -1,0 +1,24 @@
+# Model paths/versions and inference thresholds.
+# Weights themselves are gitignored under models/ — fetched by scripts/export_models.py.
+
+detector:
+  name: yolov8n
+  weights: models/yolov8n.onnx
+  confidence_threshold: 0.4
+  classes: [person]
+
+face_detector:
+  name: scrfd
+  weights: models/scrfd.onnx
+  confidence_threshold: 0.5
+
+demographics:
+  name: age_gender_retail_0013
+  weights: models/age_gender.xml
+  confidence_threshold: 0.6
+
+face_recognition:
+  name: w600k_mbf   # insightface buffalo_sc pack - see services/perception/face_id.py
+  weights: models/face_recognition.onnx
+
+execution_provider: CPUExecutionProvider   # falls back to CPUExecutionProvider if unavailable

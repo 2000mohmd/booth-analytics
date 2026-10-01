@@ -10,9 +10,8 @@ import urllib.request
 import uuid
 from datetime import datetime, timezone
 
-import yaml
-
 from services.alerting.rules import capacity_exceeded, no_coverage, traffic_spike
+from services.common.config import DEFAULT_BOOTH_CONFIG, DEFAULT_DB_PATH, load_yaml
 from services.metrics_engine import store
 
 logging.basicConfig(level=logging.INFO)
@@ -78,13 +77,12 @@ def tick(conn, booth_id: str, thresholds: dict, webhook_url: str | None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--booth-config", default=os.environ.get("BOOTH_CONFIG", "configs/booth.yaml"))
-    parser.add_argument("--db-path", default=os.environ.get("DB_PATH", "data/events.db"))
+    parser.add_argument("--booth-config", default=os.environ.get("BOOTH_CONFIG", DEFAULT_BOOTH_CONFIG))
+    parser.add_argument("--db-path", default=os.environ.get("DB_PATH", DEFAULT_DB_PATH))
     parser.add_argument("--webhook-url", default=os.environ.get("ALERT_WEBHOOK_URL"))
     args = parser.parse_args()
 
-    with open(args.booth_config) as f:
-        booth = yaml.safe_load(f)
+    booth = load_yaml(args.booth_config)
 
     conn = store.connect(args.db_path)
 

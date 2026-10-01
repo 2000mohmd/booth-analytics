@@ -7,8 +7,7 @@ import os
 import time
 from datetime import date, timedelta
 
-import yaml
-
+from services.common.config import DEFAULT_BOOTH_CONFIG, DEFAULT_DB_PATH, load_yaml
 from services.metrics_engine import store
 from services.metrics_engine.occupancy import build_daily_summary
 
@@ -19,10 +18,9 @@ CHECK_INTERVAL_S = 300
 
 
 def main():
-    booth_config = os.environ.get("BOOTH_CONFIG", "configs/booth.yaml")
-    db_path = os.environ.get("DB_PATH", "data/events.db")
-    with open(booth_config) as f:
-        booth_id = yaml.safe_load(f)["booth_id"]
+    booth_config = os.environ.get("BOOTH_CONFIG", DEFAULT_BOOTH_CONFIG)
+    db_path = os.environ.get("DB_PATH", DEFAULT_DB_PATH)
+    booth_id = load_yaml(booth_config)["booth_id"]
 
     conn = store.connect(db_path)
     log.info("metrics_engine rollup scheduler started: booth=%s", booth_id)

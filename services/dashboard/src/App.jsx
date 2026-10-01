@@ -76,9 +76,14 @@ export default function App() {
     <div className="min-h-screen px-4 py-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold">Booth Analytics</h1>
-        <span className={`text-xs px-2 py-1 rounded-full ${connected ? 'bg-emerald-900 text-emerald-300' : 'bg-neutral-800 text-neutral-400'}`}>
-          {connected ? 'live' : 'polling'}
-        </span>
+        <div className="flex items-center gap-3">
+          <a href="/live" className="text-xs px-2 py-1 rounded-full bg-neutral-800 text-neutral-300 hover:bg-neutral-700">
+            live track
+          </a>
+          <span className={`text-xs px-2 py-1 rounded-full ${connected ? 'bg-emerald-900 text-emerald-300' : 'bg-neutral-800 text-neutral-400'}`}>
+            {connected ? 'live' : 'polling'}
+          </span>
+        </div>
       </div>
 
       <AlertBanner alerts={live?.active_alerts} />

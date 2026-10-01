@@ -9,12 +9,31 @@ detector:
 
 face_detector:
   name: scrfd
-  weights: models/scrfd.onnx
+  weights: models/scrfd.onnx   # any standard insightface SCRFD export (500m/2.5g/10g) - see
+                                # scripts/export_models.py's MANUAL_MODEL_NOTES to fetch + vet one
   confidence_threshold: 0.5
 
 demographics:
   name: age_gender_retail_0013
-  weights: models/age_gender.onnx
+  weights: models/age_gender.xml   # Intel OMZ age-gender-recognition-retail-0013 (Apache 2.0),
+                                    # native OpenVINO IR (.xml + sibling .bin) - there's no
+                                    # maintained IR->ONNX converter, so DemographicsClassifier
+                                    # runs this format directly via openvino's runtime. A .onnx
+                                    # export also works if you have one. See
+                                    # scripts/export_models.py's MANUAL_MODEL_NOTES.
   confidence_threshold: 0.6
 
-execution_provider: CUDAExecutionProvider   # falls back to CPUExecutionProvider if unavailable
+# Optional. Only needed for single-camera booths (no separate eyelevel camera) - enables
+# same-camera duplicate-track detection via face similarity (see services/perception/face_id.py
+# and services/metrics_engine/dwell.py's module docstring). Omit this section entirely to skip
+# it; everything else still works without it.
+face_recognition:
+  name: w600k_mbf   # comes from the SAME insightface buffalo_sc pack as face_detector above -
+                     # see scripts/export_models.py's MANUAL_MODEL_NOTES, no separate fetch needed
+  weights: models/face_recognition.onnx
+
+execution_provider: CUDAExecutionProvider   # services/perception/detector.py's PersonDetector
+# raises at startup if CUDA doesn't actually activate, rather than silently falling back to CPU -
+# a silent CPU fallback here is what caused the undetected ~2s/camera/tick slowdown found during
+# local CPU testing; better to fail loud than discover that live at the event. Use
+# configs/models.local.yaml (execution_provider: CPUExecutionProvider) for local dev without a GPU.

@@ -1,0 +1,16 @@
+# Keeps the build context small - none of this is needed inside the image (configs/ and
+# data/ are bind-mounted at runtime per docker-compose.yml, so they don't need to be baked in
+# too; the rest is local dev cruft). models/ is NOT excluded - docker-compose.yml doesn't mount
+# it as a volume, so the Dockerfile's `COPY . .` is what actually gets model weights into the
+# image; excluding it would silently ship an ingestion image with no weights.
+.git
+.venv*
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+node_modules
+data
+scratch_test
+services/dashboard/node_modules
+services/dashboard/dist

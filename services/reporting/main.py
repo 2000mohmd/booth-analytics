@@ -3,6 +3,7 @@ import argparse
 import os
 from datetime import date
 
+from services.common.config import DEFAULT_DB_PATH
 from services.metrics_engine import store
 from services.reporting.data import daily_report_data
 from services.reporting.excel import export_workbook
@@ -10,7 +11,7 @@ from services.reporting.excel import export_workbook
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--db-path", default=os.environ.get("DB_PATH", "data/events.db"))
+    parser.add_argument("--db-path", default=os.environ.get("DB_PATH", DEFAULT_DB_PATH))
     parser.add_argument("--booth-id", required=True)
     parser.add_argument("--day", default=date.today().isoformat())
     parser.add_argument("--out-dir", default="data/reports")

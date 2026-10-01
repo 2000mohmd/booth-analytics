@@ -58,3 +58,43 @@ export async function fetchJSON(path) {
   const res = await fetch(`/api${path}`)
   return res.json()
 }
+
+/** Live anonymized bbox/zone positions per camera (services/api/main.py's /ws/tracks) - never
+ *  raw video, see that endpoint's docstring. Powers the debug live-track page only. */
+export function useLiveTracks() {
+  const [tracks, setTracks] = useState(null)
+  const [connected, setConnected] = useState(false)
+
+  useEffect(() => {
+    let ws
+    let pollTimer
+    let cancelled = false
+
+    const startPolling = () => {
+      const poll = () => fetchJSON('/tracks/live').then((d) => !cancelled && setTracks(d)).catch(() => {})
+      poll()
+      pollTimer = setInterval(poll, 1000)
+    }
+
+    try {
+      ws = new WebSocket(WS_URL + '/tracks')
+      ws.onopen = () => setConnected(true)
+      ws.onmessage = (evt) => !cancelled && setTracks(JSON.parse(evt.data))
+      ws.onerror = () => ws?.close()
+      ws.onclose = () => {
+        setConnected(false)
+        if (!cancelled) startPolling()
+      }
+    } catch {
+      startPolling()
+    }
+
+    return () => {
+      cancelled = true
+      ws?.close()
+      clearInterval(pollTimer)
+    }
+  }, [])
+
+  return { tracks, connected }
+}

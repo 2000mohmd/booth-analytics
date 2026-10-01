@@ -1,0 +1,5 @@
+# Separate from requirements.txt on purpose: this is the one component that needs a GUI
+# toolkit, and it doesn't belong in the headless Docker Compose stack at all (see
+# deploy/README.md's kiosk display section) - it runs natively on the kiosk PC's own Python.
+PySide6
+pyyaml

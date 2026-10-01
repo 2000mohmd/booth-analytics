@@ -13,3 +13,5 @@ configs/booth.yaml
 node_modules/
 dist/
 .env
+deploy/secrets/
+graphify-out/cache/

@@ -1,4 +1,11 @@
-onnxruntime-gpu
+# CUDA/cuDNN pairing matters: onnxruntime-gpu 1.19.x/1.20.x target CUDA 12.x + cuDNN 9.x;
+# 1.17.x/1.18.x target CUDA 12.x + cuDNN 8.x. Pinned to match this repo's Dockerfile base image
+# (nvcr.io/nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04, which ships cuDNN 9.x for that CUDA
+# tag). A mismatch here doesn't error - onnxruntime silently falls back to CPU - so
+# services/perception/detector.py's PersonDetector actively verifies CUDAExecutionProvider is
+# live at startup rather than trusting this pin blindly.
+onnxruntime-gpu==1.19.2
+openvino
 opencv-python-headless
 ultralytics
 supervision
@@ -8,6 +15,7 @@ uvicorn[standard]
 websockets
 httpx
 pyyaml
+python-dotenv
 pydantic
 weasyprint
 openpyxl
